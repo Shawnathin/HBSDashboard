@@ -1,0 +1,21 @@
+{
+  "name": "home-billiards-daily-app",
+  "version": "0.2.0-next",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0 -p 4173",
+    "build": "next build",
+    "start": "next start -H 0.0.0.0 -p 4173",
+    "legacy:start": "node server.mjs",
+    "check": "node --check next.config.mjs && node --check server.mjs && node --check public/legacy/app.js && node --check src/server/stateStore.js && node --check src/server/realtime.js && node --check src/app/api/health/route.js && node --check src/app/api/login/route.js && node --check src/app/api/state/route.js && node --check src/app/api/events/route.js"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "dependencies": {
+    "next": "^15.3.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}
