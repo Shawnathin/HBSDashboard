@@ -8,6 +8,7 @@ const stateKeys = new Set([
   "crews",
   "appointments",
   "services",
+  "products",
   "clients",
   "serviceTickets",
   "cueRepairs",

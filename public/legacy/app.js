@@ -112,6 +112,48 @@ const defaultServices = [
   makeService({ itemNumber: "14499", sku: "1898", name: "RE RUBBER LABOUR 12' SNOOKER", price: 900 }),
 ];
 
+const defaultProducts = [
+  makeProduct({
+    itemNumber: "P-1001",
+    sku: "FELT-BLUE-8",
+    name: "Tournament blue felt - 8 ft",
+    category: "Felt",
+    warehouseQty: 6,
+    reorderPoint: 2,
+    price: 349,
+  }),
+  makeProduct({
+    itemNumber: "P-1014",
+    sku: "CUSHION-K66",
+    name: "K66 rail cushion set",
+    category: "Rails",
+    warehouseQty: 4,
+    truckQty: { mark: 1 },
+    reorderPoint: 2,
+    price: 189,
+  }),
+  makeProduct({
+    itemNumber: "P-1032",
+    sku: "POCKET-LINER",
+    name: "Leather pocket liner kit",
+    category: "Pockets",
+    warehouseQty: 10,
+    truckQty: { mark: 2 },
+    reorderPoint: 4,
+    price: 79,
+  }),
+  makeProduct({
+    itemNumber: "P-1048",
+    sku: "SLATE-WAX",
+    name: "Slate seam wax",
+    category: "Install supplies",
+    warehouseQty: 12,
+    truckQty: { diego: 1 },
+    reorderPoint: 3,
+    price: 18,
+  }),
+];
+
 const crews = [
   { id: "crew-a", name: "Crew A", lead: "Miguel", area: "North / Central" },
   { id: "crew-b", name: "Crew B", lead: "Tara", area: "West / Coastal" },
@@ -220,6 +262,7 @@ const timeOffTypeLabels = {
 
 const storageKey = "home-billiards-service-schedule-v1";
 const serviceStorageKey = "home-billiards-services-v1";
+const productStorageKey = "home-billiards-products-v1";
 const clientStorageKey = "home-billiards-clients-v1";
 const serviceTicketStorageKey = "home-billiards-service-tickets-v1";
 const cueRepairStorageKey = "home-billiards-cue-repairs-v1";
@@ -233,10 +276,12 @@ const projectAutomationStorageKey = "home-billiards-project-automations-v1";
 const betaFeedbackStorageKey = "home-billiards-beta-feedback-v1";
 const noteStorageKey = "home-billiards-notes-v1";
 const navGroupStorageKey = "home-billiards-nav-groups-v1";
+const chatAttachmentLimitBytes = 2 * 1024 * 1024;
 const backendClientId = (crypto?.randomUUID?.() || createId()).replace(/[^a-zA-Z0-9-]/g, "");
 const backendStateKeys = [
   "appointments",
   "services",
+  "products",
   "clients",
   "serviceTickets",
   "cueRepairs",
@@ -730,6 +775,7 @@ const logoutButton = document.querySelector("#logoutButton");
 const moduleCanvas = document.querySelector("#moduleCanvas");
 const moduleTitle = document.querySelector("#moduleTitle");
 const moduleEyebrow = document.querySelector("#moduleEyebrow");
+const quickChatButton = document.querySelector("#quickChatButton");
 const navItems = [...document.querySelectorAll(".nav-item")];
 const navGroups = [...document.querySelectorAll(".nav-group")];
 const todayShortcut = document.querySelector("#todayShortcut");
@@ -748,6 +794,7 @@ const betaFeedbackAlert = document.querySelector("#betaFeedbackAlert");
 
 let welcomeAudioTimer = null;
 let services = loadServices();
+let products = loadProducts();
 let clients = loadClients();
 let appointments = loadAppointments();
 let serviceTickets = loadServiceTickets();
@@ -771,6 +818,7 @@ let calendarZoomMode = "three-week";
 let editingId = null;
 let selectedAppointmentId = null;
 let quickFactAppointmentId = null;
+let quickFactCardPosition = null;
 let jobSearchTerm = "";
 let jobStatusFilter = "open";
 let jobTypeFilter = "all";
@@ -782,6 +830,10 @@ let clientCreatingNew = false;
 let bookingClientId = null;
 let activeServiceCategory = "all";
 let serviceSearchTerm = "";
+let productSearchTerm = "";
+let productEditingId = null;
+let selectedProductId = "";
+let productInstallerFilter = "all";
 let clientSearchTerm = "";
 let clientOutstandingOnly = false;
 let ticketSearchTerm = "";
@@ -802,6 +854,14 @@ let selectedCustomOrderId = null;
 let customOrderEditingId = null;
 let customOrderCreatingNew = false;
 let activeChatThreadId = "all-staff";
+let chatSearchTerm = "";
+let openMessageMenuId = null;
+let reactionPickerMessageId = null;
+let pendingChatAttachment = null;
+let chatComposerNotice = "";
+let quickChatOpen = false;
+let quickChatThreadId = "";
+let quickChatPanelPosition = null;
 let projectStatusFilter = "all";
 let selectedProjectId = null;
 let activeProjectDepth = "glance";
@@ -865,6 +925,12 @@ const modules = {
     title: "Services",
     render: renderServices,
     bind: bindServices,
+  },
+  products: {
+    eyebrow: "Inventory custody",
+    title: "Products",
+    render: renderProducts,
+    bind: bindProducts,
   },
   tickets: {
     eyebrow: "Warranty and follow-up",
@@ -951,6 +1017,85 @@ function normalizeService(service) {
     price,
     category,
     color: service.color || getServiceColor(category),
+  };
+}
+
+function makeProduct(product) {
+  return normalizeProduct({
+    ...product,
+    id: product.id || createProductId(product.itemNumber, product.sku, product.name),
+  });
+}
+
+function normalizeProduct(product = {}) {
+  const name = String(product.name || product.description || "New product").trim();
+  const locations = normalizeProductLocations(product.locations || {
+    warehouse: product.warehouseQty,
+    trucks: product.truckQty,
+    returned: product.returnedQty,
+    used: product.usedQty,
+    adjustments: product.adjustmentsQty,
+  });
+  const movements = Array.isArray(product.movements)
+    ? product.movements.map(normalizeProductMovement).filter(Boolean)
+    : [];
+  const price = product.price === "" || product.price === null || Number.isNaN(Number(product.price))
+    ? null
+    : Number(product.price);
+  const cost = product.cost === "" || product.cost === null || Number.isNaN(Number(product.cost))
+    ? null
+    : Number(product.cost);
+
+  return {
+    id: product.id || createProductId(product.itemNumber, product.sku, name) || createId(),
+    itemNumber: String(product.itemNumber || "").trim(),
+    sku: String(product.sku || "").trim(),
+    name,
+    category: String(product.category || "Products").trim(),
+    unit: String(product.unit || "ea").trim(),
+    cost,
+    price,
+    reorderPoint: Math.max(0, Number(product.reorderPoint) || 0),
+    locations,
+    movements,
+    createdAt: product.createdAt || new Date().toISOString(),
+    updatedAt: product.updatedAt || product.createdAt || new Date().toISOString(),
+  };
+}
+
+function normalizeProductLocations(locations = {}) {
+  const trucks = Object.fromEntries(
+    Object.entries(locations.trucks || {})
+      .map(([userKey, qty]) => [userKey, Math.max(0, Number(qty) || 0)])
+      .filter(([, qty]) => qty > 0)
+  );
+
+  return {
+    warehouse: Math.max(0, Number(locations.warehouse) || 0),
+    trucks,
+    returned: Math.max(0, Number(locations.returned) || 0),
+    used: Math.max(0, Number(locations.used) || 0),
+    adjustments: Number(locations.adjustments) || 0,
+  };
+}
+
+function normalizeProductMovement(movement = {}) {
+  const qty = Number(movement.qty);
+  if (!Number.isFinite(qty) || qty <= 0) {
+    return null;
+  }
+
+  return {
+    id: movement.id || createId(),
+    type: String(movement.type || "issue"),
+    qty,
+    from: String(movement.from || ""),
+    to: String(movement.to || ""),
+    installerKey: users[movement.installerKey] ? movement.installerKey : "",
+    appointmentId: String(movement.appointmentId || ""),
+    note: String(movement.note || "").trim(),
+    createdAt: movement.createdAt || new Date().toISOString(),
+    createdBy: users[movement.createdBy] ? movement.createdBy : "shawn",
   };
 }
 
@@ -1434,6 +1579,18 @@ function createServiceId(itemNumber, sku, name) {
   return `custom-${slugify(name)}`;
 }
 
+function createProductId(itemNumber, sku, name) {
+  if (sku) {
+    return `product-${slugify(sku)}`;
+  }
+
+  if (itemNumber) {
+    return `product-item-${slugify(itemNumber)}`;
+  }
+
+  return `product-${slugify(name)}`;
+}
+
 function slugify(value) {
   return String(value)
     .toLowerCase()
@@ -1499,6 +1656,48 @@ function inferServiceDuration(name) {
 
 function getServiceCategories() {
   return ["all", ...new Set(services.map((service) => service.category))];
+}
+
+function getInstallers() {
+  const installerKeys = new Set(
+    employeeProfiles
+      .filter((profile) =>
+        profile.status === "active" &&
+        /install|field|service/i.test(`${profile.title} ${profile.department} ${profile.workLocation}`)
+      )
+      .map((profile) => profile.userKey)
+  );
+  installerKeys.add("mark");
+
+  return [...installerKeys]
+    .filter((key) => users[key])
+    .map((key) => ({ key, name: getUser(key).name }));
+}
+
+function getProductTruckQty(product, installerKey) {
+  return Number(product.locations?.trucks?.[installerKey]) || 0;
+}
+
+function getProductTruckTotal(product) {
+  return Object.values(product.locations?.trucks || {}).reduce((sum, qty) => sum + Number(qty || 0), 0);
+}
+
+function getProductOnHand(product) {
+  return Number(product.locations?.warehouse || 0) + getProductTruckTotal(product) + Number(product.locations?.returned || 0);
+}
+
+function getProductCategories() {
+  return [...new Set(products.map((product) => product.category).filter(Boolean))];
+}
+
+function getSelectedProduct() {
+  return products.find((product) => product.id === selectedProductId) || products[0] || null;
+}
+
+function getUpcomingWorkOrders() {
+  return appointments
+    .filter((appointment) => !appointment.timeOffId && appointment.status !== "complete")
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
 }
 
 function seedAppointments() {
@@ -1620,6 +1819,15 @@ function loadServices() {
   }
 }
 
+function loadProducts() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(productStorageKey));
+    return Array.isArray(saved) && saved.length ? saved.map(normalizeProduct) : defaultProducts.map(normalizeProduct);
+  } catch {
+    return defaultProducts.map(normalizeProduct);
+  }
+}
+
 function loadClients() {
   try {
     const saved = JSON.parse(localStorage.getItem(clientStorageKey));
@@ -1729,6 +1937,11 @@ function saveServices() {
   persistBackendState(["services"]);
 }
 
+function saveProducts() {
+  localStorage.setItem(productStorageKey, JSON.stringify(products));
+  persistBackendState(["products"]);
+}
+
 function saveClients() {
   localStorage.setItem(clientStorageKey, JSON.stringify(clients));
   persistBackendState(["clients"]);
@@ -1791,6 +2004,7 @@ function getBackendState() {
     crews,
     appointments,
     services,
+    products,
     clients,
     serviceTickets,
     cueRepairs,
@@ -1838,6 +2052,9 @@ function writeBackendStateToLocalStorage(changedKeys) {
   }
   if (changedKeys.includes("services")) {
     localStorage.setItem(serviceStorageKey, JSON.stringify(services));
+  }
+  if (changedKeys.includes("products")) {
+    localStorage.setItem(productStorageKey, JSON.stringify(products));
   }
   if (changedKeys.includes("clients")) {
     localStorage.setItem(clientStorageKey, JSON.stringify(clients));
@@ -1890,6 +2107,10 @@ function applyBackendState(state, options = {}) {
   if (Array.isArray(state.services)) {
     services = state.services.map(normalizeService);
     changedKeys.push("services");
+  }
+  if (Array.isArray(state.products)) {
+    products = state.products.map(normalizeProduct);
+    changedKeys.push("products");
   }
   if (Array.isArray(state.clients)) {
     clients = state.clients.map(normalizeClient);
@@ -2538,16 +2759,24 @@ function formatUnreadCount(count) {
 function updateUnreadIndicators() {
   const unreadCount = getUnreadMessageCount();
   const chatNavItem = document.querySelector("[data-module='chat']");
-  if (!chatNavItem) {
-    return;
+
+  if (chatNavItem) {
+    chatNavItem.classList.toggle("has-unread", unreadCount > 0);
+    chatNavItem.setAttribute("aria-label", unreadCount ? `Staff chat, ${unreadCount} unread` : "Staff chat");
+
+    const badge = chatNavItem.querySelector(".nav-unread-badge");
+    if (badge) {
+      badge.textContent = unreadCount ? formatUnreadCount(unreadCount) : "";
+    }
   }
 
-  chatNavItem.classList.toggle("has-unread", unreadCount > 0);
-  chatNavItem.setAttribute("aria-label", unreadCount ? `Staff chat, ${unreadCount} unread` : "Staff chat");
-
-  const badge = chatNavItem.querySelector(".nav-unread-badge");
-  if (badge) {
-    badge.textContent = unreadCount ? formatUnreadCount(unreadCount) : "";
+  if (quickChatButton) {
+    quickChatButton.classList.toggle("has-unread", unreadCount > 0);
+    quickChatButton.setAttribute("aria-label", unreadCount ? `Open quick chat, ${unreadCount} unread` : "Open quick chat");
+    const quickBadge = quickChatButton.querySelector(".quick-chat-badge");
+    if (quickBadge) {
+      quickBadge.textContent = unreadCount ? formatUnreadCount(unreadCount) : "";
+    }
   }
 }
 
@@ -3748,7 +3977,7 @@ function renderQuickFactCard(appointment) {
 
   return `
     <aside class="job-quick-card" role="dialog" aria-label="Quick facts for ${escapeHtml(client.name)}">
-      <div class="quick-card-header">
+      <div class="quick-card-header" data-quick-card-drag-handle>
         <div>
           <p class="eyebrow">Quick facts</p>
           <h4>${escapeHtml(client.name)}</h4>
@@ -3776,6 +4005,97 @@ function renderQuickFactCard(appointment) {
       </div>
     </aside>
   `;
+}
+
+function bindQuickFactCard() {
+  document.querySelectorAll(".job-quick-card.is-floating-quick-card").forEach((floatingCard) => floatingCard.remove());
+
+  const card = moduleCanvas.querySelector(".job-quick-card");
+
+  if (!card || !quickFactAppointmentId) {
+    return;
+  }
+
+  card.classList.add("is-floating-quick-card");
+  document.body.append(card);
+
+  if (!quickFactCardPosition || quickFactCardPosition.appointmentId !== quickFactAppointmentId) {
+    quickFactCardPosition = getQuickFactCardInitialPosition(card, quickFactAppointmentId);
+  }
+
+  applyQuickFactCardPosition(card);
+
+  const dragHandle = card.querySelector("[data-quick-card-drag-handle]");
+  dragHandle?.addEventListener("pointerdown", (event) => startQuickFactCardDrag(event, card));
+}
+
+function getQuickFactCardInitialPosition(card, appointmentId) {
+  const trigger = [...moduleCanvas.querySelectorAll(".calendar-job[data-appointment]")]
+    .find((button) => button.dataset.appointment === appointmentId);
+  const triggerRect = trigger?.getBoundingClientRect();
+  const margin = 12;
+  const width = card.offsetWidth || 330;
+  const height = card.offsetHeight || 420;
+  const x = triggerRect ? triggerRect.left : (window.innerWidth - width) / 2;
+  const y = triggerRect ? triggerRect.top : 88;
+
+  return {
+    appointmentId,
+    x: Math.min(Math.max(margin, x), Math.max(margin, window.innerWidth - width - margin)),
+    y: Math.min(Math.max(margin, y), Math.max(margin, window.innerHeight - height - margin)),
+  };
+}
+
+function applyQuickFactCardPosition(card) {
+  if (!card || !quickFactCardPosition) {
+    return;
+  }
+
+  card.style.left = `${quickFactCardPosition.x}px`;
+  card.style.top = `${quickFactCardPosition.y}px`;
+}
+
+function startQuickFactCardDrag(event, card) {
+  if (event.target.closest("button, a, input, textarea, select")) {
+    return;
+  }
+
+  event.preventDefault();
+  const rect = card.getBoundingClientRect();
+  const offsetX = event.clientX - rect.left;
+  const offsetY = event.clientY - rect.top;
+
+  quickFactCardPosition = {
+    appointmentId: quickFactAppointmentId,
+    x: rect.left,
+    y: rect.top,
+  };
+  applyQuickFactCardPosition(card);
+  card.classList.add("is-dragging");
+  card.setPointerCapture?.(event.pointerId);
+
+  const moveCard = (moveEvent) => {
+    const margin = 8;
+    const width = card.offsetWidth;
+    const height = card.offsetHeight;
+    quickFactCardPosition = {
+      appointmentId: quickFactAppointmentId,
+      x: Math.min(Math.max(margin, moveEvent.clientX - offsetX), window.innerWidth - width - margin),
+      y: Math.min(Math.max(margin, moveEvent.clientY - offsetY), window.innerHeight - height - margin),
+    };
+    applyQuickFactCardPosition(card);
+  };
+
+  const stopDrag = () => {
+    card.classList.remove("is-dragging");
+    card.removeEventListener("pointermove", moveCard);
+    card.removeEventListener("pointerup", stopDrag);
+    card.removeEventListener("pointercancel", stopDrag);
+  };
+
+  card.addEventListener("pointermove", moveCard);
+  card.addEventListener("pointerup", stopDrag);
+  card.addEventListener("pointercancel", stopDrag);
 }
 
 function getSelectedAppointment(dayAppointments) {
@@ -5817,6 +6137,341 @@ function renderServiceRow(service) {
   `;
 }
 
+function renderProducts() {
+  const warehouseTotal = products.reduce((sum, product) => sum + Number(product.locations.warehouse || 0), 0);
+  const truckTotal = products.reduce((sum, product) => sum + getProductTruckTotal(product), 0);
+  const lowStockCount = products.filter((product) => product.reorderPoint && product.locations.warehouse <= product.reorderPoint).length;
+  const movementCount = products.reduce((sum, product) => sum + product.movements.length, 0);
+  const selectedProduct = getSelectedProduct();
+  const formProduct = products.find((product) => product.id === productEditingId) || {
+    id: "",
+    itemNumber: "",
+    sku: "",
+    name: "",
+    category: "Products",
+    unit: "ea",
+    price: null,
+    cost: null,
+    reorderPoint: 0,
+    locations: { warehouse: 0, trucks: {}, returned: 0, used: 0, adjustments: 0 },
+  };
+  const selectedMovementProductId = selectedProduct?.id || products[0]?.id || "";
+
+  return `
+    <div class="products-layout">
+      <section class="products-main">
+        <div class="services-toolbar">
+          <label class="search-field" for="productSearch">
+            <span>Search products</span>
+            <input id="productSearch" type="search" value="${escapeHtml(productSearchTerm)}" placeholder="Search SKU, product, installer" />
+          </label>
+          <button class="primary-action compact" type="button" data-product-action="new">New product</button>
+        </div>
+
+        <div class="service-stat-grid">
+          <article class="metric-panel">
+            <span>${products.length}</span>
+            <p>Total products</p>
+          </article>
+          <article class="metric-panel">
+            <span>${warehouseTotal}</span>
+            <p>In warehouse</p>
+          </article>
+          <article class="metric-panel">
+            <span>${truckTotal}</span>
+            <p>On trucks</p>
+          </article>
+          <article class="metric-panel">
+            <span>${lowStockCount}</span>
+            <p>Low stock</p>
+          </article>
+        </div>
+
+        <div class="product-custody-grid">
+          <article class="product-custody-card">
+            <p class="eyebrow">Custody summary</p>
+            <h3>Truck inventory is live stock</h3>
+            <p>Products issued to an installer leave the warehouse count, stay visible under that installer, then move back to warehouse or into work-order use.</p>
+            <div class="product-custody-totals">
+              <span><strong>${movementCount}</strong> moves logged</span>
+              <span><strong>${products.reduce((sum, product) => sum + Number(product.locations.used || 0), 0)}</strong> used on work</span>
+            </div>
+          </article>
+          ${renderTruckReconcileCards()}
+        </div>
+
+        <div class="service-filter-row" role="group" aria-label="Installer inventory filter">
+          <button class="${productInstallerFilter === "all" ? "is-active" : ""}" type="button" data-product-installer="all">All</button>
+          ${getInstallers().map((installer) => `
+            <button class="${productInstallerFilter === installer.key ? "is-active" : ""}" type="button" data-product-installer="${escapeHtml(installer.key)}">
+              ${escapeHtml(installer.name)}
+            </button>
+          `).join("")}
+        </div>
+
+        <div class="services-table-card">
+          <div class="services-table-heading">
+            <h3>Product catalog</h3>
+            <span id="productVisibleCount">${products.length} shown</span>
+          </div>
+          <div class="services-table-wrap">
+            <table class="services-table products-table">
+              <thead>
+                <tr>
+                  <th>Item #</th>
+                  <th>SKU</th>
+                  <th>Product</th>
+                  <th>Warehouse</th>
+                  <th>Truck</th>
+                  <th>On hand</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${products.map(renderProductRow).join("")}
+              </tbody>
+            </table>
+          </div>
+          <div class="empty-state compact is-hidden" id="productEmptyState">
+            <h4>No products found</h4>
+            <p>Try another search or installer filter.</p>
+          </div>
+        </div>
+
+        ${renderProductLedger()}
+      </section>
+
+      <aside class="product-side-stack" aria-label="Product tools">
+        ${renderProductMoveForm(selectedMovementProductId)}
+        ${renderProductEditor(formProduct)}
+      </aside>
+    </div>
+  `;
+}
+
+function renderProductRow(product) {
+  const truckTotal = getProductTruckTotal(product);
+  const truckText = Object.entries(product.locations.trucks || {})
+    .map(([key, qty]) => `${getUser(key).name}: ${qty}`)
+    .join(" ");
+  const searchText = `${product.itemNumber} ${product.sku} ${product.name} ${product.category} ${truckText}`.toLowerCase();
+  const truckDisplay = productInstallerFilter === "all"
+    ? truckTotal
+    : getProductTruckQty(product, productInstallerFilter);
+  const isLow = product.reorderPoint && product.locations.warehouse <= product.reorderPoint;
+
+  return `
+    <tr class="service-row product-row ${isLow ? "product-low-stock" : ""}" data-product-row data-search="${escapeHtml(searchText)}" data-truck-total="${truckTotal}" data-installer-qty="${escapeHtml(JSON.stringify(product.locations.trucks || {}))}">
+      <td>${escapeHtml(product.itemNumber || "-")}</td>
+      <td>${escapeHtml(product.sku || "-")}</td>
+      <td>
+        <strong>${escapeHtml(product.name)}</strong>
+        <span>${escapeHtml(product.category)} · ${escapeHtml(product.unit)}${isLow ? " · low stock" : ""}</span>
+      </td>
+      <td>${product.locations.warehouse}</td>
+      <td>${truckDisplay}</td>
+      <td>${getProductOnHand(product)}</td>
+      <td><button class="text-action" type="button" data-product-edit="${escapeHtml(product.id)}">Edit</button></td>
+    </tr>
+  `;
+}
+
+function renderTruckReconcileCards() {
+  return getInstallers().map((installer) => {
+    const truckItems = products
+      .map((product) => ({ product, qty: getProductTruckQty(product, installer.key) }))
+      .filter((item) => item.qty > 0);
+    const totalQty = truckItems.reduce((sum, item) => sum + item.qty, 0);
+
+    return `
+      <article class="product-truck-card">
+        <div>
+          <p class="eyebrow">${escapeHtml(installer.name)} truck</p>
+          <h3>${totalQty} item${totalQty === 1 ? "" : "s"}</h3>
+        </div>
+        <ul class="mini-list">
+          ${truckItems.length ? truckItems.slice(0, 4).map(({ product, qty }) => `
+            <li><span>${qty} ${escapeHtml(product.unit)}</span><strong>${escapeHtml(product.name)}</strong></li>
+          `).join("") : "<li><span>Clear</span><strong>No product assigned</strong></li>"}
+        </ul>
+      </article>
+    `;
+  }).join("");
+}
+
+function renderProductMoveForm(selectedProductIdForForm) {
+  const workOrders = getUpcomingWorkOrders();
+
+  return `
+    <section class="service-editor product-tool-panel">
+      <form class="booking-form" id="productMoveForm">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Move inventory</p>
+            <h3>Issue, use, return</h3>
+          </div>
+        </div>
+
+        <label for="productMoveProduct">Product</label>
+        <select id="productMoveProduct" name="productId" ${products.length ? "" : "disabled"}>
+          ${products.map((product) => `<option value="${escapeHtml(product.id)}" ${product.id === selectedProductIdForForm ? "selected" : ""}>${escapeHtml(product.name)}</option>`).join("")}
+        </select>
+
+        <div class="form-row">
+          <div>
+            <label for="productMoveType">Action</label>
+            <select id="productMoveType" name="movementType">
+              <option value="issue">Issue to truck</option>
+              <option value="use">Used on work order</option>
+              <option value="return">Return to warehouse</option>
+              <option value="reconcile">Reconcile truck count</option>
+            </select>
+          </div>
+          <div>
+            <label for="productMoveQty">Qty / count</label>
+            <input id="productMoveQty" name="qty" type="number" min="0" step="1" value="1" />
+          </div>
+        </div>
+
+        <label for="productMoveInstaller">Installer</label>
+        <select id="productMoveInstaller" name="installerKey">
+          ${getInstallers().map((installer) => `<option value="${escapeHtml(installer.key)}">${escapeHtml(installer.name)}</option>`).join("")}
+        </select>
+
+        <label for="productMoveWorkOrder">Work order</label>
+        <select id="productMoveWorkOrder" name="appointmentId">
+          <option value="">No work order selected</option>
+          ${workOrders.map((appointment) => `
+            <option value="${escapeHtml(appointment.id)}">${escapeHtml(formatShortDate(dateFromKey(appointment.date)))} · ${escapeHtml(getClient(appointment.clientId).name)} · ${escapeHtml(getAppointmentTitle(appointment))}</option>
+          `).join("")}
+        </select>
+
+        <label for="productMoveNote">Note</label>
+        <textarea id="productMoveNote" name="note" rows="2" maxlength="180" placeholder="Optional note"></textarea>
+
+        <button class="primary-action" type="submit" ${products.length ? "" : "disabled"}>Save movement</button>
+        <p class="form-alert" id="productMoveAlert" hidden></p>
+      </form>
+    </section>
+  `;
+}
+
+function renderProductEditor(product) {
+  return `
+    <section class="service-editor product-tool-panel">
+      <form class="booking-form" id="productForm">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">${productEditingId ? "Update product" : "Add product"}</p>
+            <h3>${productEditingId ? "Product details" : "New product"}</h3>
+          </div>
+          ${productEditingId ? `<button class="text-action" type="button" data-product-action="cancel">Cancel</button>` : ""}
+        </div>
+
+        <div class="form-row">
+          <div>
+            <label for="productItemNumber">Item #</label>
+            <input id="productItemNumber" name="itemNumber" value="${escapeHtml(product.itemNumber)}" placeholder="Optional" />
+          </div>
+          <div>
+            <label for="productSku">SKU</label>
+            <input id="productSku" name="sku" value="${escapeHtml(product.sku)}" placeholder="Optional" />
+          </div>
+        </div>
+
+        <label for="productName">Product</label>
+        <input id="productName" name="name" value="${escapeHtml(product.name)}" placeholder="Rails, felt, pocket kit" required />
+
+        <div class="form-row">
+          <div>
+            <label for="productCategory">Category</label>
+            <input id="productCategory" name="category" value="${escapeHtml(product.category)}" list="productCategoryList" />
+            <datalist id="productCategoryList">
+              ${getProductCategories().map((category) => `<option value="${escapeHtml(category)}"></option>`).join("")}
+            </datalist>
+          </div>
+          <div>
+            <label for="productUnit">Unit</label>
+            <input id="productUnit" name="unit" value="${escapeHtml(product.unit)}" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div>
+            <label for="productWarehouseQty">Warehouse qty</label>
+            <input id="productWarehouseQty" name="warehouseQty" type="number" min="0" step="1" value="${product.locations.warehouse}" />
+          </div>
+          <div>
+            <label for="productReorderPoint">Reorder at</label>
+            <input id="productReorderPoint" name="reorderPoint" type="number" min="0" step="1" value="${product.reorderPoint}" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div>
+            <label for="productCost">Cost</label>
+            <input id="productCost" name="cost" type="number" min="0" step="0.01" value="${product.cost ?? ""}" placeholder="Optional" />
+          </div>
+          <div>
+            <label for="productPrice">Price</label>
+            <input id="productPrice" name="price" type="number" min="0" step="0.01" value="${product.price ?? ""}" placeholder="Optional" />
+          </div>
+        </div>
+
+        <button class="primary-action" type="submit">${productEditingId ? "Save product" : "Add product"}</button>
+        ${productEditingId ? `<button class="secondary-action danger" type="button" data-product-action="delete">Delete product</button>` : ""}
+        <p class="form-alert" id="productAlert" hidden></p>
+      </form>
+    </section>
+  `;
+}
+
+function renderProductLedger() {
+  const movements = products
+    .flatMap((product) => product.movements.map((movement) => ({ ...movement, product })))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 12);
+
+  return `
+    <section class="services-table-card product-ledger">
+      <div class="services-table-heading">
+        <h3>Recent inventory moves</h3>
+        <span>${movements.length} shown</span>
+      </div>
+      <div class="product-ledger-list">
+        ${movements.length ? movements.map(renderProductMovement).join("") : `
+          <div class="empty-state compact">
+            <h4>No product moves yet</h4>
+            <p>Issue a product to an installer to start the custody history.</p>
+          </div>
+        `}
+      </div>
+    </section>
+  `;
+}
+
+function renderProductMovement(movement) {
+  const appointment = appointments.find((item) => item.id === movement.appointmentId);
+  const workOrderText = appointment ? `${getClient(appointment.clientId).name} · ${formatShortDate(dateFromKey(appointment.date))}` : "No work order";
+
+  return `
+    <article class="product-movement-row">
+      <div>
+        <strong>${escapeHtml(movement.product.name)}</strong>
+        <span>${escapeHtml(movement.from)} -&gt; ${escapeHtml(movement.to)}</span>
+      </div>
+      <div>
+        <strong>${movement.qty} ${escapeHtml(movement.product.unit)}</strong>
+        <span>${escapeHtml(workOrderText)}</span>
+      </div>
+      <div>
+        <strong>${escapeHtml(formatRecordDate(movement.createdAt))}</strong>
+        <span>${escapeHtml(movement.note || getUser(movement.createdBy).name)}</span>
+      </div>
+    </article>
+  `;
+}
+
 function renderTeam() {
   const upcomingTimeOff = getUpcomingTimeOff("", 6);
   const activeEmployees = employeeProfiles.filter((profile) => profile.status === "active").length;
@@ -7488,9 +8143,11 @@ function renderNoteForm(note) {
 
 function renderChat() {
   const activeThread = getThread(activeChatThreadId);
-  const messages = getThreadMessages(activeThread.id);
+  const allMessages = getThreadMessages(activeThread.id);
+  const messages = getFilteredChatMessages(allMessages);
   const directThreads = getDirectThreads();
   const typingText = getTypingText();
+  const searchActive = Boolean(chatSearchTerm.trim());
 
   return `
     <div class="chat-layout">
@@ -7524,26 +8181,53 @@ function renderChat() {
             <h3>${escapeHtml(activeThread.name)}</h3>
             <p>${escapeHtml(activeThread.description)}</p>
           </div>
-          <div class="participant-stack" aria-label="Thread participants">
-            ${activeThread.participants.map((key) => renderPhotoAvatar(key, "tiny")).join("")}
+          <div class="chat-header-tools">
+            <label class="chat-search-field" for="chatSearch">
+              <span class="sr-only">Search messages</span>
+              <input id="chatSearch" type="search" value="${escapeHtml(chatSearchTerm)}" placeholder="Search messages" autocomplete="off" />
+            </label>
+            <div class="participant-stack" aria-label="Thread participants">
+              ${activeThread.participants.map((key) => renderPhotoAvatar(key, "tiny")).join("")}
+            </div>
           </div>
         </div>
 
         <div class="message-list" id="messageList">
-          ${messages.length ? messages.map(renderMessage).join("") : renderEmptyChat()}
-          ${typingText ? renderTypingIndicator(typingText) : ""}
+          ${messages.length ? messages.map(renderMessage).join("") : searchActive ? renderEmptyChatSearch() : renderEmptyChat()}
+          ${typingText && !searchActive ? renderTypingIndicator(typingText) : ""}
         </div>
 
         <form class="chat-composer" id="chatComposer">
           <label for="chatMessage">Message</label>
+          ${chatComposerNotice ? `<p class="chat-composer-notice">${escapeHtml(chatComposerNotice)}</p>` : ""}
+          ${pendingChatAttachment ? renderPendingChatAttachment() : ""}
           <div class="composer-row">
             <textarea id="chatMessage" name="message" rows="2" maxlength="480" placeholder="${activeThread.type === "direct" ? `Message ${escapeHtml(activeThread.name)}` : `Type a message to ${escapeHtml(activeThread.name)}`}"></textarea>
+            <label class="attachment-button" for="chatAttachment" title="Attach image or file">
+              +
+              <input id="chatAttachment" name="attachment" type="file" accept="image/*,.pdf,.txt" />
+            </label>
             <button class="primary-action compact" type="submit">Send</button>
           </div>
         </form>
       </section>
     </div>
   `;
+}
+
+function getFilteredChatMessages(messages) {
+  const term = chatSearchTerm.trim().toLowerCase();
+
+  if (!term) {
+    return messages;
+  }
+
+  return messages.filter((message) => {
+    const sender = getUser(message.senderKey).name.toLowerCase();
+    const body = getChatMessagePreview(message).toLowerCase();
+    const attachments = (message.attachments || []).map((attachment) => attachment.name || "").join(" ").toLowerCase();
+    return sender.includes(term) || body.includes(term) || attachments.includes(term);
+  });
 }
 
 function renderPhotoAvatar(userKey, size = "small") {
@@ -7601,6 +8285,65 @@ function renderThreadButton(thread) {
   `;
 }
 
+function renderPendingChatAttachment() {
+  return `
+    <div class="pending-attachment">
+      <span>${escapeHtml(pendingChatAttachment.name)}</span>
+      <small>${escapeHtml(formatFileSize(pendingChatAttachment.size))}</small>
+      <button type="button" data-attachment-clear aria-label="Remove attachment">&times;</button>
+    </div>
+  `;
+}
+
+function renderMessageAttachments(message) {
+  const attachments = Array.isArray(message.attachments) ? message.attachments : [];
+
+  if (!attachments.length) {
+    return "";
+  }
+
+  return `
+    <div class="message-attachments">
+      ${attachments.map((attachment) => attachment.type?.startsWith("image/") ? `
+        <figure class="message-image-attachment">
+          <img src="${escapeHtml(attachment.dataUrl)}" alt="${escapeHtml(attachment.name)}" />
+          <figcaption>${escapeHtml(attachment.name)}</figcaption>
+        </figure>
+      ` : `
+        <a class="message-file-attachment" href="${escapeHtml(attachment.dataUrl)}" download="${escapeHtml(attachment.name)}">
+          <span>${escapeHtml(attachment.name)}</span>
+          <small>${escapeHtml(formatFileSize(attachment.size))}</small>
+        </a>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderMessageReactions(message) {
+  const reactions = message.reactions || {};
+  const options = [
+    ["up", "👍"],
+    ["down", "👎"],
+  ];
+
+  const visible = options
+    .map(([key, emoji]) => {
+      const count = Array.isArray(reactions[key]) ? reactions[key].length : 0;
+      return count ? `<span class="message-reaction-count">${emoji} ${count}</span>` : "";
+    })
+    .join("");
+
+  const picker = reactionPickerMessageId === message.id ? `
+    <div class="reaction-picker" role="menu" aria-label="React to message">
+      ${options.map(([key, emoji]) => `
+        <button type="button" data-message-reaction="${escapeHtml(message.id)}" data-reaction="${key}" aria-label="${key === "up" ? "Thumbs up" : "Thumbs down"}">${emoji}</button>
+      `).join("")}
+    </div>
+  ` : "";
+
+  return `${visible ? `<div class="message-reactions">${visible}</div>` : ""}${picker}`;
+}
+
 function renderMessage(message) {
   if (message.type === "project-suggestion") {
     return renderProjectSuggestionMessage(message);
@@ -7614,14 +8357,18 @@ function renderMessage(message) {
   const statusText = getMessageStatusText(message);
 
   return `
-    <article class="${classes}">
+    <article class="${classes}" data-message-id="${escapeHtml(message.id)}">
       ${renderPhotoAvatar(message.senderKey, "small")}
       <div class="message-bubble">
         <div class="message-meta">
           <strong>${escapeHtml(sender.name)}</strong>
-          <time datetime="${escapeHtml(message.createdAt)}">${formatMessageTime(message.createdAt)}</time>
+          <span>
+            <time datetime="${escapeHtml(message.createdAt)}">${formatMessageTime(message.createdAt)}</time>
+            <button class="message-menu-button" type="button" data-message-menu="${escapeHtml(message.id)}" aria-label="Message actions">...</button>
+          </span>
         </div>
-        <p>${escapeHtml(message.body)}</p>
+        ${message.body ? `<p>${escapeHtml(message.body)}</p>` : ""}
+        ${renderMessageAttachments(message)}
         ${project ? `
           <button class="project-message-link" type="button" data-project-request-action="open" data-project-id="${escapeHtml(project.id)}">
             Open ${escapeHtml(project.title)}
@@ -7632,9 +8379,12 @@ function renderMessage(message) {
             Open ${escapeHtml(linkedNote.title)}
           </button>
         ` : ""}
-        <div class="message-action-row">
-          <button class="message-note-action" type="button" data-message-note="${escapeHtml(message.id)}">Make note</button>
-        </div>
+        ${openMessageMenuId === message.id ? `
+          <div class="message-action-menu">
+            <button class="message-note-action" type="button" data-message-note="${escapeHtml(message.id)}">Make note</button>
+          </div>
+        ` : ""}
+        ${renderMessageReactions(message)}
         ${statusText ? `<small class="message-status">${escapeHtml(statusText)}</small>` : ""}
       </div>
     </article>
@@ -7718,6 +8468,317 @@ function renderEmptyChat() {
       <p>Start the conversation for this room.</p>
     </div>
   `;
+}
+
+function renderEmptyChatSearch() {
+  return `
+    <div class="empty-state">
+      <h4>No matches</h4>
+      <p>Try another search in this thread.</p>
+    </div>
+  `;
+}
+
+function formatFileSize(bytes) {
+  if (!Number.isFinite(Number(bytes))) {
+    return "";
+  }
+
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+function getQuickChatThreads() {
+  return [...getDirectThreads(), ...chatThreads];
+}
+
+function getQuickChatActiveThread() {
+  const threads = getQuickChatThreads();
+
+  if (!threads.length) {
+    return null;
+  }
+
+  if (!threads.some((thread) => thread.id === quickChatThreadId)) {
+    quickChatThreadId = threads.find((thread) => getThreadUnreadCount(thread.id))?.id || threads[0].id;
+  }
+
+  return threads.find((thread) => thread.id === quickChatThreadId) || threads[0];
+}
+
+function renderQuickChatThreadIcon(thread) {
+  if (thread.type === "direct") {
+    return renderPhotoAvatar(getDirectRecipientKey(thread.id), "small");
+  }
+
+  const label = thread.name
+    .split(/\s+/)
+    .map((word) => word[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  return `<span class="quick-chat-room-icon" aria-hidden="true">${escapeHtml(label)}</span>`;
+}
+
+function getQuickChatThreadSubtitle(thread) {
+  if (thread.type === "direct") {
+    const recipientKey = getDirectRecipientKey(thread.id);
+    return staffStatuses[recipientKey] || getUser(recipientKey).role;
+  }
+
+  return thread.label || "Room";
+}
+
+function getQuickChatButtonLabel(thread) {
+  if (thread.type === "direct") {
+    return getUser(getDirectRecipientKey(thread.id)).name.slice(0, 1).toUpperCase();
+  }
+
+  return "";
+}
+
+function renderQuickChatPerson(thread) {
+  const unreadCount = getThreadUnreadCount(thread.id);
+  const classes = [
+    "quick-chat-person",
+    thread.type !== "direct" ? "is-room" : "",
+    thread.id === quickChatThreadId ? "is-active" : "",
+    unreadCount ? "has-unread" : "",
+  ].filter(Boolean).join(" ");
+  const lastMessage = getThreadLastMessage(thread.id);
+  const preview = lastMessage ? getMessagePreview(getChatMessagePreview(lastMessage)) : getQuickChatThreadSubtitle(thread);
+  const buttonLabel = getQuickChatButtonLabel(thread);
+
+  return `
+    <button class="${classes}" type="button" data-quick-chat-thread="${escapeHtml(thread.id)}" aria-label="Quick message ${escapeHtml(thread.name)}${unreadCount ? `, ${unreadCount} unread` : ""}" title="${escapeHtml(preview)}">
+      <span class="quick-chat-person-avatar">
+        ${renderQuickChatThreadIcon(thread)}
+        ${unreadCount ? `<span class="quick-chat-person-badge" aria-hidden="true">${formatUnreadCount(unreadCount)}</span>` : ""}
+      </span>
+      ${buttonLabel ? `<strong>${escapeHtml(buttonLabel)}</strong>` : ""}
+    </button>
+  `;
+}
+
+function renderQuickChatMessage(message) {
+  const isMine = message.senderKey === currentUserKey;
+  const classes = ["quick-chat-message", isMine ? "is-mine" : ""].filter(Boolean).join(" ");
+  const sender = getUser(message.senderKey);
+
+  return `
+    <article class="${classes}">
+      ${!isMine ? renderPhotoAvatar(message.senderKey, "tiny") : ""}
+      <div>
+        <span>${escapeHtml(isMine ? "You" : sender.name)} · ${escapeHtml(formatMessageTime(message.createdAt))}</span>
+        <p>${escapeHtml(getChatMessagePreview(message))}</p>
+      </div>
+    </article>
+  `;
+}
+
+function renderQuickChatPanel() {
+  let panel = document.querySelector("#quickChatPanel");
+
+  if (!panel) {
+    panel = document.createElement("aside");
+    panel.id = "quickChatPanel";
+    panel.className = "quick-chat-panel is-hidden";
+    panel.setAttribute("aria-label", "Quick chat");
+    document.querySelector(".nav-home-wrap")?.append(panel);
+  }
+
+  quickChatButton?.setAttribute("aria-expanded", quickChatOpen ? "true" : "false");
+  panel.classList.toggle("is-hidden", !quickChatOpen);
+  applyQuickChatPanelPosition(panel);
+
+  if (!quickChatOpen) {
+    return;
+  }
+
+  const threads = getQuickChatThreads();
+  const activeThread = getQuickChatActiveThread();
+
+  if (!activeThread) {
+    panel.innerHTML = `
+      <div class="quick-chat-panel-head" data-quick-chat-drag-handle>
+        <div>
+          <span>Quick chat</span>
+          <strong>Messages</strong>
+        </div>
+        <button class="quick-chat-close" type="button" data-quick-chat-close aria-label="Close quick chat">&times;</button>
+      </div>
+      <div class="empty-state">
+        <h4>No staff profiles</h4>
+        <p>Add a staff profile to start quick direct messages.</p>
+      </div>
+    `;
+    bindQuickChatPanel(panel);
+    return;
+  }
+
+  markThreadRead(activeThread.id);
+  const messages = getThreadMessages(activeThread.id).slice(-6);
+  const placeholder = activeThread.type === "direct"
+    ? `Message ${activeThread.name}`
+    : `Message ${activeThread.name}`;
+
+  panel.innerHTML = `
+    <div class="quick-chat-panel-head" data-quick-chat-drag-handle>
+      <div>
+        <span>Quick chat</span>
+        <strong>Messages</strong>
+      </div>
+      <button class="quick-chat-close" type="button" data-quick-chat-close aria-label="Close quick chat">&times;</button>
+    </div>
+    <div class="quick-chat-people" aria-label="Quick chat threads">
+      ${threads.map(renderQuickChatPerson).join("")}
+    </div>
+    <div class="quick-chat-body">
+      <section class="quick-chat-thread" aria-label="Quick chat with ${escapeHtml(activeThread.name)}">
+        <div class="quick-chat-messages" id="quickChatMessages">
+          ${messages.length ? messages.map(renderQuickChatMessage).join("") : `
+            <div class="quick-chat-empty">
+              <strong>No messages yet</strong>
+              <span>Send ${escapeHtml(activeThread.name)} a quick note.</span>
+            </div>
+          `}
+        </div>
+        <form class="quick-chat-composer" id="quickChatComposer">
+          <label class="sr-only" for="quickChatMessage">${escapeHtml(placeholder)}</label>
+          <textarea id="quickChatMessage" name="message" rows="3" placeholder="${escapeHtml(placeholder)}"></textarea>
+          <button class="primary-action" type="submit">Send</button>
+        </form>
+      </section>
+    </div>
+  `;
+
+  bindQuickChatPanel(panel);
+  updateUnreadIndicators();
+  panel.querySelector("#quickChatMessages")?.scrollTo({ top: panel.querySelector("#quickChatMessages").scrollHeight });
+}
+
+function applyQuickChatPanelPosition(panel) {
+  if (!panel || !quickChatPanelPosition) {
+    panel?.classList.remove("is-dragged");
+    if (panel) {
+      panel.style.left = "";
+      panel.style.top = "";
+    }
+    return;
+  }
+
+  panel.classList.add("is-dragged");
+  panel.style.left = `${quickChatPanelPosition.x}px`;
+  panel.style.top = `${quickChatPanelPosition.y}px`;
+}
+
+function bindQuickChatPanel(panel) {
+  panel.onclick = (event) => {
+    event.stopPropagation();
+    const closeButton = event.target.closest("[data-quick-chat-close]");
+    if (closeButton) {
+      toggleQuickChat(false);
+      return;
+    }
+
+    const threadButton = event.target.closest("[data-quick-chat-thread]");
+    if (threadButton) {
+      quickChatThreadId = threadButton.dataset.quickChatThread;
+      renderQuickChatPanel();
+    }
+  };
+
+  const composer = panel.querySelector("#quickChatComposer");
+  if (composer) {
+    composer.onsubmit = (event) => {
+      event.preventDefault();
+      const messageField = composer.querySelector("#quickChatMessage");
+      const body = messageField.value.trim();
+
+      if (!body) {
+        messageField.focus();
+        return;
+      }
+
+      sendQuickChatMessage(quickChatThreadId, body);
+    };
+  }
+
+  const dragHandle = panel.querySelector("[data-quick-chat-drag-handle]");
+  dragHandle?.addEventListener("pointerdown", (event) => startQuickChatDrag(event, panel));
+}
+
+function startQuickChatDrag(event, panel) {
+  if (event.target.closest("button")) {
+    return;
+  }
+
+  event.preventDefault();
+  const rect = panel.getBoundingClientRect();
+  const offsetX = event.clientX - rect.left;
+  const offsetY = event.clientY - rect.top;
+
+  quickChatPanelPosition = {
+    x: rect.left,
+    y: rect.top,
+  };
+  applyQuickChatPanelPosition(panel);
+  panel.setPointerCapture?.(event.pointerId);
+
+  const movePanel = (moveEvent) => {
+    const width = panel.offsetWidth;
+    const height = panel.offsetHeight;
+    quickChatPanelPosition = {
+      x: Math.min(Math.max(8, moveEvent.clientX - offsetX), window.innerWidth - width - 8),
+      y: Math.min(Math.max(8, moveEvent.clientY - offsetY), window.innerHeight - height - 8),
+    };
+    applyQuickChatPanelPosition(panel);
+  };
+
+  const stopDrag = () => {
+    panel.removeEventListener("pointermove", movePanel);
+    panel.removeEventListener("pointerup", stopDrag);
+    panel.removeEventListener("pointercancel", stopDrag);
+  };
+
+  panel.addEventListener("pointermove", movePanel);
+  panel.addEventListener("pointerup", stopDrag);
+  panel.addEventListener("pointercancel", stopDrag);
+}
+
+function toggleQuickChat(forceOpen = !quickChatOpen) {
+  quickChatOpen = forceOpen;
+  renderQuickChatPanel();
+
+  if (quickChatOpen) {
+    window.setTimeout(() => document.querySelector("#quickChatMessage")?.focus(), 50);
+  }
+}
+
+function sendQuickChatMessage(threadId, body) {
+  const thread = getThread(threadId);
+  const recipientKey = thread.type === "direct" ? getDirectRecipientKey(thread.id) : "";
+
+  chatMessages = [
+    ...chatMessages,
+    {
+      id: createId(),
+      threadId: thread.id,
+      senderKey: currentUserKey,
+      recipientKey,
+      body,
+      createdAt: new Date().toISOString(),
+      deliveredAt: new Date().toISOString(),
+      readBy: [currentUserKey],
+    },
+  ];
+
+  saveChatMessages();
+  renderQuickChatPanel();
 }
 
 function showMessageAlert(message, count = 1) {
@@ -7907,6 +8968,10 @@ function syncIncomingChatMessages(nextMessages) {
     setModule("home");
   }
 
+  if (quickChatOpen) {
+    renderQuickChatPanel();
+  }
+
   if (!isReset && incomingMessages.length) {
     showMessageAlert(incomingMessages.at(-1), incomingMessages.length);
   }
@@ -7995,7 +9060,7 @@ function renderSettings() {
     <div class="settings-layout">
       <section class="settings-panel">
         <h3>Schedule data</h3>
-        <p>When this app is started with the beta server, appointments, clients, services, tickets, cue repairs, notes, chat, and projects are saved in the shared on-prem database and update live for connected computers.</p>
+        <p>When this app is started with the beta server, appointments, clients, services, products, tickets, cue repairs, notes, chat, and projects are saved in the shared on-prem database and update live for connected computers.</p>
         <div class="settings-actions">
           <button class="secondary-action" type="button" data-action="export">Export JSON</button>
           <button class="secondary-action" type="button" data-action="reset-chat">Reset chat</button>
@@ -8006,6 +9071,7 @@ function renderSettings() {
         <h3>Business setup</h3>
         <dl class="settings-list">
           <div><dt>Services</dt><dd>${services.length}</dd></div>
+          <div><dt>Products</dt><dd>${products.length}</dd></div>
           <div><dt>Crews</dt><dd>${crews.length}</dd></div>
           <div><dt>Clients</dt><dd>${clients.length}</dd></div>
           <div><dt>Appointments</dt><dd>${appointments.length}</dd></div>
@@ -8118,8 +9184,12 @@ function bindSchedule() {
   moduleCanvas.querySelectorAll("[data-appointment]").forEach((button) => {
     button.addEventListener("click", () => {
       const appointment = appointments.find((item) => item.id === button.dataset.appointment);
+      const nextQuickFactId = button.classList.contains("calendar-job") ? button.dataset.appointment : null;
       selectedAppointmentId = button.dataset.appointment;
-      quickFactAppointmentId = button.classList.contains("calendar-job") ? button.dataset.appointment : null;
+      if (nextQuickFactId !== quickFactAppointmentId) {
+        quickFactCardPosition = null;
+      }
+      quickFactAppointmentId = nextQuickFactId;
       selectedDate = appointment?.date || button.dataset.date || selectedDate;
       currentMonth = startOfMonth(dateFromKey(selectedDate));
       setModule("schedule");
@@ -8138,6 +9208,7 @@ function bindSchedule() {
 
   moduleCanvas.querySelector("[data-action='close-quick-card']")?.addEventListener("click", () => {
     quickFactAppointmentId = null;
+    quickFactCardPosition = null;
     setModule("schedule");
   });
 
@@ -8151,6 +9222,7 @@ function bindSchedule() {
     }
 
     quickFactAppointmentId = null;
+    quickFactCardPosition = null;
     setModule("schedule");
   });
 
@@ -8267,6 +9339,7 @@ function bindSchedule() {
   });
 
   bindScheduleDragAndDrop();
+  bindQuickFactCard();
 
   const form = moduleCanvas.querySelector("#bookingForm");
   if (form) {
@@ -8906,6 +9979,261 @@ function showServiceAlert(message) {
 
   alert.hidden = false;
   alert.textContent = message;
+}
+
+function bindProducts() {
+  const search = moduleCanvas.querySelector("#productSearch");
+  search?.addEventListener("input", () => {
+    productSearchTerm = search.value;
+    updateProductRows();
+  });
+
+  moduleCanvas.querySelectorAll("[data-product-installer]").forEach((button) => {
+    button.addEventListener("click", () => {
+      productInstallerFilter = button.dataset.productInstaller;
+      moduleCanvas.querySelectorAll("[data-product-installer]").forEach((item) => {
+        item.classList.toggle("is-active", item === button);
+      });
+      updateProductRows();
+    });
+  });
+
+  moduleCanvas.querySelector("[data-product-action='new']")?.addEventListener("click", () => {
+    productEditingId = null;
+    setModule("products");
+    moduleCanvas.querySelector("#productName")?.focus();
+  });
+
+  moduleCanvas.querySelector("[data-product-action='cancel']")?.addEventListener("click", () => {
+    productEditingId = null;
+    setModule("products");
+  });
+
+  moduleCanvas.querySelectorAll("[data-product-edit]").forEach((button) => {
+    button.addEventListener("click", () => {
+      productEditingId = button.dataset.productEdit;
+      selectedProductId = button.dataset.productEdit;
+      setModule("products");
+      moduleCanvas.querySelector("#productForm")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+
+  moduleCanvas.querySelector("#productMoveProduct")?.addEventListener("change", (event) => {
+    selectedProductId = event.currentTarget.value;
+  });
+
+  moduleCanvas.querySelector("#productForm")?.addEventListener("submit", submitProduct);
+  moduleCanvas.querySelector("#productMoveForm")?.addEventListener("submit", submitProductMovement);
+  moduleCanvas.querySelector("[data-product-action='delete']")?.addEventListener("click", deleteProduct);
+  updateProductRows();
+}
+
+function updateProductRows() {
+  const query = productSearchTerm.trim().toLowerCase();
+  let visibleCount = 0;
+
+  moduleCanvas.querySelectorAll("[data-product-row]").forEach((row) => {
+    let installerQty = 0;
+    try {
+      installerQty = Number(JSON.parse(row.dataset.installerQty || "{}")[productInstallerFilter]) || 0;
+    } catch {
+      installerQty = 0;
+    }
+    const matchesInstaller = productInstallerFilter === "all" || installerQty > 0;
+    const matchesSearch = !query || row.dataset.search.includes(query);
+    const isVisible = matchesInstaller && matchesSearch;
+    row.classList.toggle("is-hidden", !isVisible);
+    if (isVisible) visibleCount += 1;
+  });
+
+  const count = moduleCanvas.querySelector("#productVisibleCount");
+  if (count) {
+    count.textContent = `${visibleCount} shown`;
+  }
+
+  moduleCanvas.querySelector("#productEmptyState")?.classList.toggle("is-hidden", visibleCount > 0);
+}
+
+function submitProduct(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form).entries());
+  const existing = products.find((product) => product.id === productEditingId);
+  const product = normalizeProduct({
+    ...(existing || {}),
+    id: existing?.id || createUniqueProductId(data.itemNumber.trim(), data.sku.trim(), data.name.trim()),
+    itemNumber: data.itemNumber,
+    sku: data.sku,
+    name: data.name,
+    category: data.category,
+    unit: data.unit,
+    cost: data.cost,
+    price: data.price,
+    reorderPoint: data.reorderPoint,
+    locations: {
+      ...(existing?.locations || {}),
+      warehouse: data.warehouseQty,
+    },
+    updatedAt: new Date().toISOString(),
+  });
+
+  if (!product.name) {
+    showProductAlert("Add a product name before saving.");
+    return;
+  }
+
+  products = existing
+    ? products.map((item) => (item.id === existing.id ? product : item))
+    : [...products, product];
+
+  productEditingId = product.id;
+  selectedProductId = product.id;
+  productSearchTerm = "";
+  saveProducts();
+  setModule("products");
+}
+
+function createUniqueProductId(itemNumber, sku, name) {
+  const baseId = createProductId(itemNumber, sku, name) || `product-${Date.now()}`;
+  if (!products.some((product) => product.id === baseId)) {
+    return baseId;
+  }
+
+  return `${baseId}-${Date.now().toString(36)}`;
+}
+
+function deleteProduct() {
+  if (!productEditingId) {
+    return;
+  }
+
+  const product = products.find((item) => item.id === productEditingId);
+  if (!product) {
+    return;
+  }
+
+  if (getProductTruckTotal(product) || product.movements.length) {
+    showProductAlert("This product has truck stock or movement history. Reconcile it to zero before deleting.");
+    return;
+  }
+
+  products = products.filter((item) => item.id !== product.id);
+  productEditingId = null;
+  selectedProductId = products[0]?.id || "";
+  saveProducts();
+  setModule("products");
+}
+
+function submitProductMovement(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form).entries());
+  const product = products.find((item) => item.id === data.productId);
+  const qty = Number(data.qty);
+  const installerKey = users[data.installerKey] ? data.installerKey : "mark";
+  const installerName = getUser(installerKey).name;
+
+  if (!product) {
+    showProductMoveAlert("Choose a product first.");
+    return;
+  }
+
+  if (!Number.isFinite(qty) || qty < 0 || (data.movementType !== "reconcile" && qty === 0)) {
+    showProductMoveAlert("Enter a valid quantity.");
+    return;
+  }
+
+  const locations = normalizeProductLocations(product.locations);
+  const truckQty = getProductTruckQty(product, installerKey);
+  let movement = null;
+
+  if (data.movementType === "issue") {
+    if (locations.warehouse < qty) {
+      showProductMoveAlert(`Only ${locations.warehouse} available in warehouse.`);
+      return;
+    }
+    locations.warehouse -= qty;
+    locations.trucks[installerKey] = truckQty + qty;
+    movement = createProductMovement(data, qty, "Warehouse", `${installerName} truck`);
+  } else if (data.movementType === "return") {
+    if (truckQty < qty) {
+      showProductMoveAlert(`${installerName} only has ${truckQty} on the truck.`);
+      return;
+    }
+    locations.trucks[installerKey] = truckQty - qty;
+    locations.warehouse += qty;
+    movement = createProductMovement(data, qty, `${installerName} truck`, "Warehouse");
+  } else if (data.movementType === "use") {
+    if (truckQty < qty) {
+      showProductMoveAlert(`${installerName} only has ${truckQty} on the truck.`);
+      return;
+    }
+    locations.trucks[installerKey] = truckQty - qty;
+    locations.used += qty;
+    movement = createProductMovement(data, qty, `${installerName} truck`, data.appointmentId ? "Work order used" : "Used");
+  } else if (data.movementType === "reconcile") {
+    const countedQty = qty;
+    const difference = countedQty - truckQty;
+    if (difference === 0) {
+      showProductMoveAlert(`${installerName} truck already matches that count.`);
+      return;
+    }
+    locations.trucks[installerKey] = countedQty;
+    locations.adjustments += difference;
+    movement = createProductMovement(
+      data,
+      Math.abs(difference),
+      difference > 0 ? "Count adjustment" : `${installerName} truck`,
+      difference > 0 ? `${installerName} truck` : "Count adjustment",
+      `Counted ${countedQty}. ${data.note || ""}`.trim()
+    );
+  }
+
+  if (!movement) {
+    showProductMoveAlert("Choose an inventory action.");
+    return;
+  }
+
+  Object.keys(locations.trucks).forEach((key) => {
+    if (!locations.trucks[key]) delete locations.trucks[key];
+  });
+
+  products = products.map((item) => item.id === product.id
+    ? normalizeProduct({
+      ...product,
+      locations,
+      movements: [movement, ...product.movements],
+      updatedAt: new Date().toISOString(),
+    })
+    : item
+  );
+  selectedProductId = product.id;
+  productEditingId = null;
+  saveProducts();
+  setModule("products");
+}
+
+function createProductMovement(data, qty, from, to, noteOverride = "") {
+  return normalizeProductMovement({
+    id: createId(),
+    type: data.movementType,
+    qty,
+    from,
+    to,
+    installerKey: data.installerKey,
+    appointmentId: data.appointmentId,
+    note: noteOverride || data.note,
+    createdAt: new Date().toISOString(),
+    createdBy: currentUserKey,
+  });
+}
+
+function showProductAlert(message) {
+  showFormAlert(moduleCanvas.querySelector("#productAlert"), message);
+}
+
+function showProductMoveAlert(message) {
+  showFormAlert(moduleCanvas.querySelector("#productMoveAlert"), message);
 }
 
 function bindCustomOrders() {
@@ -10960,9 +12288,21 @@ function bindChat() {
   moduleCanvas.querySelectorAll("[data-thread]").forEach((button) => {
     button.addEventListener("click", () => {
       typingState = null;
+      chatSearchTerm = "";
+      openMessageMenuId = null;
+      reactionPickerMessageId = null;
       activeChatThreadId = button.dataset.thread;
       setModule("chat");
     });
+  });
+
+  const searchField = moduleCanvas.querySelector("#chatSearch");
+  searchField?.addEventListener("input", () => {
+    chatSearchTerm = searchField.value;
+    setModule("chat");
+    const nextSearch = moduleCanvas.querySelector("#chatSearch");
+    nextSearch?.focus();
+    nextSearch?.setSelectionRange(nextSearch.value.length, nextSearch.value.length);
   });
 
   moduleCanvas.querySelectorAll("[data-project-request-action]").forEach((button) => {
@@ -10991,16 +12331,43 @@ function bindChat() {
     button.addEventListener("click", () => createNoteFromMessage(button.dataset.messageNote));
   });
 
+  moduleCanvas.querySelectorAll("[data-message-menu]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openMessageMenuId = openMessageMenuId === button.dataset.messageMenu ? null : button.dataset.messageMenu;
+      reactionPickerMessageId = null;
+      setModule("chat");
+    });
+  });
+
+  moduleCanvas.querySelectorAll("[data-message-reaction]").forEach((button) => {
+    button.addEventListener("click", () => {
+      applyMessageReaction(button.dataset.messageReaction, button.dataset.reaction);
+    });
+  });
+
+  bindMessageLongPressReactions();
+
   const messageList = moduleCanvas.querySelector("#messageList");
   messageList?.scrollTo({ top: messageList.scrollHeight });
 
   const composer = moduleCanvas.querySelector("#chatComposer");
+  composer?.querySelector("[data-attachment-clear]")?.addEventListener("click", () => {
+    pendingChatAttachment = null;
+    chatComposerNotice = "";
+    setModule("chat");
+  });
+
+  composer?.querySelector("#chatAttachment")?.addEventListener("change", (event) => {
+    handleChatAttachment(event.currentTarget.files?.[0]);
+  });
+
   composer?.addEventListener("submit", (event) => {
     event.preventDefault();
     const messageField = composer.querySelector("#chatMessage");
     const body = messageField.value.trim();
 
-    if (!body) {
+    if (!body && !pendingChatAttachment) {
       messageField.focus();
       return;
     }
@@ -11012,12 +12379,15 @@ function bindChat() {
         threadId: activeChatThreadId,
         senderKey: currentUserKey,
         body,
+        attachments: pendingChatAttachment ? [pendingChatAttachment] : [],
         createdAt: new Date().toISOString(),
         deliveredAt: new Date().toISOString(),
         readBy: [currentUserKey],
       },
     ];
 
+    pendingChatAttachment = null;
+    chatComposerNotice = "";
     saveChatMessages();
     clearTypingBroadcast();
     setModule("chat");
@@ -11027,9 +12397,95 @@ function bindChat() {
   composer?.querySelector("#chatMessage")?.addEventListener("input", broadcastTyping);
 }
 
+function bindMessageLongPressReactions() {
+  let reactionTimer = null;
+
+  moduleCanvas.querySelectorAll("[data-message-id]").forEach((row) => {
+    row.addEventListener("pointerdown", (event) => {
+      if (event.target.closest("button, a, textarea, input, .reaction-picker")) {
+        return;
+      }
+
+      const messageId = row.dataset.messageId;
+      reactionTimer = window.setTimeout(() => {
+        reactionPickerMessageId = messageId;
+        openMessageMenuId = null;
+        setModule("chat");
+      }, 520);
+    });
+
+    const cancel = () => {
+      window.clearTimeout(reactionTimer);
+      reactionTimer = null;
+    };
+
+    row.addEventListener("pointerup", cancel);
+    row.addEventListener("pointerleave", cancel);
+    row.addEventListener("pointercancel", cancel);
+  });
+}
+
+function applyMessageReaction(messageId, reactionKey) {
+  chatMessages = chatMessages.map((message) => {
+    if (message.id !== messageId) {
+      return message;
+    }
+
+    const reactions = {
+      up: Array.isArray(message.reactions?.up) ? message.reactions.up.filter((key) => key !== currentUserKey) : [],
+      down: Array.isArray(message.reactions?.down) ? message.reactions.down.filter((key) => key !== currentUserKey) : [],
+    };
+
+    if (!message.reactions?.[reactionKey]?.includes(currentUserKey)) {
+      reactions[reactionKey] = [...reactions[reactionKey], currentUserKey];
+    }
+
+    return {
+      ...message,
+      reactions,
+    };
+  });
+
+  reactionPickerMessageId = null;
+  saveChatMessages();
+  setModule("chat");
+}
+
+function handleChatAttachment(file) {
+  if (!file) {
+    return;
+  }
+
+  if (file.size > chatAttachmentLimitBytes) {
+    pendingChatAttachment = null;
+    chatComposerNotice = `Attachment limit is ${formatFileSize(chatAttachmentLimitBytes)}.`;
+    setModule("chat");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.addEventListener("load", () => {
+    pendingChatAttachment = {
+      id: createId(),
+      name: file.name,
+      type: file.type || "application/octet-stream",
+      size: file.size,
+      dataUrl: String(reader.result || ""),
+    };
+    chatComposerNotice = "";
+    setModule("chat");
+  });
+  reader.addEventListener("error", () => {
+    pendingChatAttachment = null;
+    chatComposerNotice = "Attachment could not be read.";
+    setModule("chat");
+  });
+  reader.readAsDataURL(file);
+}
+
 function bindSettings() {
   moduleCanvas.querySelector("[data-action='export']")?.addEventListener("click", () => {
-    const data = JSON.stringify({ businessProfile, appointments, services, clients, serviceTickets, cueRepairs, customOrders, employeeProfiles, accountSecurity, crews, notes, chatMessages, projects, projectAutomations, betaFeedback }, null, 2);
+    const data = JSON.stringify({ businessProfile, appointments, services, products, clients, serviceTickets, cueRepairs, customOrders, employeeProfiles, accountSecurity, crews, notes, chatMessages, projects, projectAutomations, betaFeedback }, null, 2);
     const url = URL.createObjectURL(new Blob([data], { type: "application/json" }));
     const link = document.createElement("a");
     link.href = url;
@@ -11046,6 +12502,7 @@ function bindSettings() {
 
   moduleCanvas.querySelector("[data-action='reset']")?.addEventListener("click", () => {
     appointments = seedAppointments();
+    products = defaultProducts.map(normalizeProduct);
     clients = defaultClients.map(normalizeClient);
     serviceTickets = defaultServiceTickets.map(normalizeServiceTicket);
     cueRepairs = [];
@@ -11076,6 +12533,10 @@ function bindSettings() {
     customOrderSearchTerm = "";
     customOrderStatusFilter = "all";
     selectedProjectId = null;
+    productEditingId = null;
+    selectedProductId = "";
+    productSearchTerm = "";
+    productInstallerFilter = "all";
     selectedNoteId = null;
     noteEditingId = null;
     noteCreatingNew = false;
@@ -11085,6 +12546,7 @@ function bindSettings() {
     jobTypeFilter = "all";
     scheduleNotice = "";
     saveAppointments();
+    saveProducts();
     saveClients();
     saveServiceTickets();
     saveCueRepairs();
@@ -11758,6 +13220,14 @@ function setModule(moduleKey) {
   if (moduleKey === "development" && !canCurrentUserUseDevelopment()) {
     moduleKey = "home";
   }
+  if (moduleKey === "chat" && quickChatOpen) {
+    toggleQuickChat(false);
+  }
+  if (moduleKey !== "schedule") {
+    quickFactAppointmentId = null;
+    quickFactCardPosition = null;
+    document.querySelectorAll(".job-quick-card.is-floating-quick-card").forEach((card) => card.remove());
+  }
   activeModule = moduleKey;
   const module = modules[moduleKey] || modules.home;
   if (moduleKey === "chat") {
@@ -11827,6 +13297,11 @@ navItems.forEach((item) => {
   });
 });
 
+quickChatButton?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  toggleQuickChat();
+});
+
 navGroups.forEach((group) => {
   group.addEventListener("toggle", () => saveNavGroupState(group));
 });
@@ -11878,6 +13353,9 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !betaFeedbackPanel?.classList.contains("is-hidden")) {
     resetBetaFeedbackPanel();
   }
+  if (event.key === "Escape" && quickChatOpen) {
+    toggleQuickChat(false);
+  }
 });
 
 window.addEventListener("storage", (event) => {
@@ -11885,6 +13363,7 @@ window.addEventListener("storage", (event) => {
     ![
       storageKey,
       serviceStorageKey,
+      productStorageKey,
       clientStorageKey,
       serviceTicketStorageKey,
       cueRepairStorageKey,
@@ -11912,6 +13391,11 @@ window.addEventListener("storage", (event) => {
     } else if (event.key === serviceStorageKey) {
       services = JSON.parse(event.newValue).map(normalizeService);
       if (["services", "schedule", "jobs", "home"].includes(activeModule)) {
+        setModule(activeModule);
+      }
+    } else if (event.key === productStorageKey) {
+      products = JSON.parse(event.newValue).map(normalizeProduct);
+      if (["products", "home", "settings"].includes(activeModule)) {
         setModule(activeModule);
       }
     } else if (event.key === clientStorageKey) {

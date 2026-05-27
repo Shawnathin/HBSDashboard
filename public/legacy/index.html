@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Home Billiards Service Scheduler</title>
-    <link rel="stylesheet" href="styles.css?v=beta-feedback" />
+    <link rel="stylesheet" href="styles.css?v=quick-facts-float-1" />
   </head>
   <body>
     <main class="app-shell">
@@ -74,16 +74,25 @@
             <img src="assets/home-billiards-logo-app.png" alt="Home Billiards" width="520" height="304" />
           </div>
 
-          <button class="nav-item nav-home is-active" type="button" data-module="home" aria-label="Home">
-            <span class="nav-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" role="img">
-                <path d="M4 11.5 12 5l8 6.5" />
-                <path d="M6.5 10.5V20h11v-9.5" />
-                <path d="M10 20v-5h4v5" />
+          <div class="nav-home-wrap">
+            <button class="nav-item nav-home is-active" type="button" data-module="home" aria-label="Home">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img">
+                  <path d="M4 11.5 12 5l8 6.5" />
+                  <path d="M6.5 10.5V20h11v-9.5" />
+                  <path d="M10 20v-5h4v5" />
+                </svg>
+              </span>
+              <span>Home</span>
+            </button>
+            <button class="quick-chat-button" id="quickChatButton" type="button" aria-label="Open quick chat" aria-expanded="false">
+              <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+                <path d="M5 6.5h14v9H9l-4 3v-12Z" />
+                <path d="M8.5 10.5h7M8.5 13h4" />
               </svg>
-            </span>
-            <span>Home</span>
-          </button>
+              <span class="quick-chat-badge" aria-hidden="true"></span>
+            </button>
+          </div>
 
           <nav class="nav-stack" aria-label="Dashboard apps">
             <details class="nav-group" data-nav-group="work" open>
@@ -137,6 +146,17 @@
                 </svg>
               </span>
               <span>Services</span>
+            </button>
+            <button class="nav-item" type="button" data-module="products" aria-label="Products">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img">
+                  <path d="M5 7.5 12 4l7 3.5-7 3.5-7-3.5Z" />
+                  <path d="M5 7.5v8.5l7 4 7-4V7.5" />
+                  <path d="M12 11v9" />
+                  <path d="M8.5 13.5 5 11.5M15.5 13.5l3.5-2" />
+                </svg>
+              </span>
+              <span>Products</span>
             </button>
             <button class="nav-item" type="button" data-module="tickets" aria-label="Service tickets">
               <span class="nav-icon" aria-hidden="true">
@@ -342,6 +362,6 @@
       </section>
     </main>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=quick-facts-float-1"></script>
   </body>
 </html>
