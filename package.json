@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev -H 0.0.0.0 -p 4173",
-    "build": "next build",
-    "start": "next start -H 0.0.0.0 -p 4173",
+    "dev": "PATH=.tools/bin:$PATH NEXT_SWC_PATH=.next/cache/swc next dev -H 0.0.0.0 -p ${PORT:-4173}",
+    "build": "PATH=.tools/bin:$PATH NEXT_SWC_PATH=.next/cache/swc next build",
+    "start": "PATH=.tools/bin:$PATH NEXT_SWC_PATH=.next/cache/swc next start -H 0.0.0.0 -p ${PORT:-4173}",
     "legacy:start": "node server.mjs",
     "check": "node --check next.config.mjs && node --check server.mjs && node --check public/legacy/app.js && node --check src/server/stateStore.js && node --check src/server/realtime.js && node --check src/app/api/health/route.js && node --check src/app/api/login/route.js && node --check src/app/api/state/route.js && node --check src/app/api/events/route.js"
   },

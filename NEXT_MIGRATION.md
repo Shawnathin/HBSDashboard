@@ -26,7 +26,9 @@ data/daily-app.sqlite
 
 ## Commands
 
-Install dependencies once a package manager is available:
+Dependencies are installed locally. This workspace did not have system `npm`, so a local npm helper was installed under `.tools` and ignored by `.gitignore`.
+
+Install dependencies on a machine with normal Node/npm:
 
 ```bash
 npm install
@@ -38,6 +40,12 @@ Run the Next.js dev server:
 npm run dev
 ```
 
+Run on another port when `4173` is already occupied:
+
+```bash
+PORT=4174 npm run start
+```
+
 Run the legacy Node server if rollback is needed:
 
 ```bash
@@ -46,7 +54,6 @@ npm run legacy:start
 
 ## Next Steps
 
-1. Install `next`, `react`, and `react-dom`.
-2. Run the app through Next at `http://localhost:4173`.
-3. Replace the legacy iframe one module at a time: login, dashboard, calendar, jobs, clients, team, notes, settings.
-4. After the UI is componentized, decide whether to keep SQLite or migrate storage to Postgres.
+1. Replace the legacy iframe one module at a time: login, dashboard, calendar, jobs, clients, team, notes, settings.
+2. After the UI is componentized, decide whether to keep SQLite or migrate storage to Postgres.
+3. Track the current npm audit warning for Next's PostCSS dependency and update Next when a patched release is available.
