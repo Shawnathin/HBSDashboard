@@ -734,9 +734,9 @@ const navItems = [...document.querySelectorAll(".nav-item")];
 const navGroups = [...document.querySelectorAll(".nav-group")];
 const todayShortcut = document.querySelector("#todayShortcut");
 const newJobShortcut = document.querySelector("#newJobShortcut");
+const quickCapture = document.querySelector("#quickCapture");
 const quickAddButton = document.querySelector("#quickAddButton");
 const quickAddPanel = document.querySelector("#quickAddPanel");
-const quickAddClose = document.querySelector("#quickAddClose");
 const quickAddType = document.querySelector("#quickAddType");
 const betaFeedbackContainer = document.querySelector("#betaFeedback");
 const betaFeedbackPanel = document.querySelector("#betaFeedbackPanel");
@@ -10583,21 +10583,13 @@ function respondToBetaFeature(action) {
 }
 
 function setQuickAddType(type) {
-  if (!["note", "reminder", "suggestion"].includes(type)) {
+  if (type !== "note") {
     return;
   }
 
   if (quickAddType) {
     quickAddType.value = type;
   }
-
-  document.querySelectorAll("[data-quick-type]").forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.quickType === type);
-  });
-
-  document.querySelectorAll(".quick-reminder-field").forEach((item) => {
-    item.classList.toggle("is-hidden", type !== "reminder");
-  });
 }
 
 function toggleQuickAddPanel(forceOpen) {
@@ -10610,7 +10602,7 @@ function toggleQuickAddPanel(forceOpen) {
   quickAddButton.setAttribute("aria-expanded", String(shouldOpen));
 
   if (shouldOpen) {
-    setQuickAddType(quickAddType?.value || "note");
+    setQuickAddType("note");
     window.setTimeout(() => quickAddPanel.querySelector("#quickAddTitle")?.focus(), 50);
   }
 }
@@ -10625,7 +10617,6 @@ function submitQuickAdd(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const data = Object.fromEntries(new FormData(form).entries());
-  const type = data.type || "note";
   const title = String(data.title || "").trim();
   const body = String(data.body || "").trim();
 
@@ -10634,11 +10625,7 @@ function submitQuickAdd(event) {
     return;
   }
 
-  if (type === "suggestion") {
-    addQuickSuggestion(title, body);
-  } else {
-    addQuickNote(type, title, body, data.reminderAt);
-  }
+  addQuickNote("note", title, body, "");
 
   resetQuickAddPanel();
 }
@@ -11872,24 +11859,17 @@ document.addEventListener("click", (event) => {
   }
 });
 
-quickAddClose?.addEventListener("click", () => {
-  resetQuickAddPanel();
-});
+quickAddPanel?.addEventListener("submit", submitQuickAdd);
 
-quickAddPanel?.querySelectorAll("[data-quick-type]").forEach((button) => {
-  button.addEventListener("click", () => {
-    setQuickAddType(button.dataset.quickType);
-    quickAddPanel.querySelector("#quickAddTitle")?.focus();
-  });
-});
+document.addEventListener("click", (event) => {
+  if (!quickAddPanel || quickAddPanel.classList.contains("is-hidden")) {
+    return;
+  }
 
-quickAddPanel?.addEventListener("click", (event) => {
-  if (event.target.closest("#quickAddClose")) {
+  if (!quickCapture?.contains(event.target)) {
     resetQuickAddPanel();
   }
 });
-
-quickAddPanel?.addEventListener("submit", submitQuickAdd);
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !quickAddPanel?.classList.contains("is-hidden")) {

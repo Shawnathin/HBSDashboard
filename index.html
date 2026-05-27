@@ -302,32 +302,16 @@
               </form>
             </div>
             <div class="quick-capture" id="quickCapture">
-              <button class="quick-add-button" type="button" id="quickAddButton" aria-expanded="false" aria-controls="quickAddPanel">
+              <button class="quick-add-button" type="button" id="quickAddButton" aria-expanded="false" aria-controls="quickAddPanel" aria-label="Quick add note">
                 <span aria-hidden="true">+</span>
-                <strong>Quick add</strong>
               </button>
-              <form class="quick-add-panel is-hidden" id="quickAddPanel" aria-label="Quick add card">
-                <div class="quick-type-row" role="group" aria-label="Quick add type">
-                  <button class="is-active" type="button" data-quick-type="note">Note</button>
-                  <button type="button" data-quick-type="reminder">Reminder</button>
-                  <button type="button" data-quick-type="suggestion">Suggestion</button>
-                </div>
-
+              <form class="quick-add-panel is-hidden" id="quickAddPanel" aria-label="Quick note">
                 <input type="hidden" name="type" id="quickAddType" value="note" />
 
-                <label for="quickAddTitle">Title</label>
-                <input id="quickAddTitle" name="title" maxlength="90" placeholder="Quick title" required />
+                <input id="quickAddTitle" name="title" maxlength="90" placeholder="Title" required />
+                <textarea id="quickAddBody" name="body" rows="4" maxlength="420" placeholder="Details"></textarea>
 
-                <label for="quickAddBody">Details</label>
-                <textarea id="quickAddBody" name="body" rows="3" maxlength="420" placeholder="A few words are enough"></textarea>
-
-                <label class="quick-reminder-field is-hidden" for="quickAddReminderAt">Reminder</label>
-                <input class="quick-reminder-field is-hidden" id="quickAddReminderAt" name="reminderAt" type="datetime-local" />
-
-                <div class="quick-add-actions">
-                  <button class="text-action" type="button" id="quickAddClose">Close</button>
-                  <button class="primary-action compact" type="submit">Add</button>
-                </div>
+                <button class="quick-note-save" type="submit" aria-label="Save quick note">✓</button>
               </form>
             </div>
             <div class="user-chip">
