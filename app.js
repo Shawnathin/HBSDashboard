@@ -10262,14 +10262,9 @@ function setBetaFeedbackType(type) {
     button.classList.toggle("is-active", button.dataset.betaType === type);
   });
 
-  document.querySelector("#betaScreenshotField")?.classList.toggle("is-hidden", type !== "bug");
-  const titleField = document.querySelector("#betaFeedbackTitle");
   const detailField = document.querySelector("#betaFeedbackDetails");
-  if (titleField) {
-    titleField.placeholder = type === "bug" ? "What is broken?" : "What should we add?";
-  }
   if (detailField) {
-    detailField.placeholder = type === "bug" ? "What happened? What screen were you on?" : "What would this help staff do?";
+    detailField.placeholder = type === "bug" ? "What broke? What screen were you on?" : "What would help?";
   }
 }
 
@@ -10286,7 +10281,7 @@ function toggleBetaFeedbackPanel(type = "", forceOpen) {
   betaFeedbackPanel.classList.toggle("is-hidden", !shouldOpen);
   if (shouldOpen) {
     betaFeedbackAlert.hidden = true;
-    window.setTimeout(() => betaFeedbackPanel.querySelector("#betaFeedbackTitle")?.focus(), 50);
+    window.setTimeout(() => betaFeedbackPanel.querySelector("#betaFeedbackDetails")?.focus(), 50);
   }
 }
 
@@ -10351,15 +10346,15 @@ function submitBetaFeedback(event) {
   const form = event.currentTarget;
   const data = Object.fromEntries(new FormData(form).entries());
   const type = betaFeedbackTypeLabels[data.type] ? data.type : "bug";
-  const title = String(data.title || "").trim();
   const details = String(data.details || "").trim();
 
-  if (!title) {
-    form.querySelector("#betaFeedbackTitle")?.focus();
+  if (!details) {
+    form.querySelector("#betaFeedbackDetails")?.focus();
     return;
   }
 
   const now = new Date().toISOString();
+  const title = details.length > 72 ? `${details.slice(0, 69)}...` : details;
   const feedback = normalizeBetaFeedback({
     id: createId(),
     type,
@@ -10367,7 +10362,7 @@ function submitBetaFeedback(event) {
     title,
     details,
     reporterKey: currentUserKey,
-    screenshotDataUrl: type === "bug" ? betaScreenshotDataUrl : "",
+    screenshotDataUrl: betaScreenshotDataUrl,
     assignedTo: "",
     createdAt: now,
     updatedAt: now,
@@ -11849,7 +11844,7 @@ betaFeedbackClose?.addEventListener("click", resetBetaFeedbackPanel);
 betaFeedbackPanel?.querySelectorAll("[data-beta-type]").forEach((button) => {
   button.addEventListener("click", () => {
     setBetaFeedbackType(button.dataset.betaType);
-    betaFeedbackPanel.querySelector("#betaFeedbackTitle")?.focus();
+    betaFeedbackPanel.querySelector("#betaFeedbackDetails")?.focus();
   });
 });
 
