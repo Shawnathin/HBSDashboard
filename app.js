@@ -11618,6 +11618,20 @@ function getCurrentDateTitle() {
   return formatLongDate(toDateKey(new Date()));
 }
 
+function getLoginGreeting(date = new Date()) {
+  const minutesSinceMidnight = date.getHours() * 60 + date.getMinutes();
+
+  if (minutesSinceMidnight < 12 * 60) {
+    return "Good Morning";
+  }
+
+  if (minutesSinceMidnight <= 17 * 60) {
+    return "Good Afternoon";
+  }
+
+  return "Stop Working";
+}
+
 function updateUser(userKey) {
   const user = users[userKey] || users.shawn;
   userName.textContent = user.name;
@@ -11625,7 +11639,7 @@ function updateUser(userKey) {
   userAvatar.textContent = user.avatar;
   syncRoleNavigation();
   if (startupGreeting) {
-    startupGreeting.textContent = `Good Morning, ${user.name}!`;
+    startupGreeting.textContent = `${getLoginGreeting()}, ${user.name}!`;
   }
 }
 
