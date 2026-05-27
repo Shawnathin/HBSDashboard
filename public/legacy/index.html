@@ -265,8 +265,6 @@
                 </button>
               </div>
               <form class="beta-feedback-panel is-hidden" id="betaFeedbackPanel" aria-label="Beta feedback form">
-                <button class="beta-feedback-close" type="button" id="betaFeedbackClose" aria-label="Close feedback">×</button>
-
                 <div class="quick-type-row beta-type-toggle" role="group" aria-label="Feedback type">
                   <button class="is-active" type="button" data-beta-type="bug" aria-label="Bug report">
                     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -296,6 +294,10 @@
                 <div class="quick-add-actions beta-submit-row">
                   <button class="beta-camera-button" type="button" id="betaScreenshotButton" aria-label="Attach screenshot">📷</button>
                   <button class="primary-action compact" type="submit">Submit</button>
+                </div>
+
+                <div class="beta-feedback-success" aria-hidden="true">
+                  <span>✓</span>
                 </div>
               </form>
             </div>

@@ -738,9 +738,9 @@ const quickAddButton = document.querySelector("#quickAddButton");
 const quickAddPanel = document.querySelector("#quickAddPanel");
 const quickAddClose = document.querySelector("#quickAddClose");
 const quickAddType = document.querySelector("#quickAddType");
+const betaFeedbackContainer = document.querySelector("#betaFeedback");
 const betaFeedbackPanel = document.querySelector("#betaFeedbackPanel");
 const betaFeedbackType = document.querySelector("#betaFeedbackType");
-const betaFeedbackClose = document.querySelector("#betaFeedbackClose");
 const betaScreenshotButton = document.querySelector("#betaScreenshotButton");
 const betaScreenshotPreview = document.querySelector("#betaScreenshotPreview");
 const betaScreenshotStatus = document.querySelector("#betaScreenshotStatus");
@@ -10287,6 +10287,7 @@ function toggleBetaFeedbackPanel(type = "", forceOpen) {
 
 function resetBetaFeedbackPanel() {
   betaFeedbackPanel?.reset();
+  betaFeedbackPanel?.classList.remove("is-submitted");
   betaScreenshotDataUrl = "";
   betaScreenshotPreview?.classList.add("is-hidden");
   betaScreenshotPreview?.removeAttribute("src");
@@ -10298,6 +10299,14 @@ function resetBetaFeedbackPanel() {
   }
   setBetaFeedbackType("bug");
   toggleBetaFeedbackPanel("", false);
+}
+
+function showBetaFeedbackSuccess() {
+  if (!betaFeedbackPanel) {
+    return;
+  }
+
+  betaFeedbackPanel.classList.add("is-submitted");
 }
 
 async function captureBetaScreenshot() {
@@ -10386,11 +10395,15 @@ function submitBetaFeedback(event) {
   betaFeedback = [feedback, ...betaFeedback];
   selectedBetaFeedbackId = feedback.id;
   saveBetaFeedback();
-  resetBetaFeedbackPanel();
+  showBetaFeedbackSuccess();
 
-  if (activeModule === "development" && canCurrentUserUseDevelopment()) {
-    setModule("development");
-  }
+  window.setTimeout(() => {
+    resetBetaFeedbackPanel();
+
+    if (activeModule === "development" && canCurrentUserUseDevelopment()) {
+      setModule("development");
+    }
+  }, 850);
 }
 
 function createBugTicketFromFeedback(feedback) {
@@ -11839,8 +11852,6 @@ document.querySelectorAll("[data-beta-open]").forEach((button) => {
   button.addEventListener("click", () => toggleBetaFeedbackPanel(button.dataset.betaOpen, true));
 });
 
-betaFeedbackClose?.addEventListener("click", resetBetaFeedbackPanel);
-
 betaFeedbackPanel?.querySelectorAll("[data-beta-type]").forEach((button) => {
   button.addEventListener("click", () => {
     setBetaFeedbackType(button.dataset.betaType);
@@ -11850,6 +11861,16 @@ betaFeedbackPanel?.querySelectorAll("[data-beta-type]").forEach((button) => {
 
 betaScreenshotButton?.addEventListener("click", captureBetaScreenshot);
 betaFeedbackPanel?.addEventListener("submit", submitBetaFeedback);
+
+document.addEventListener("click", (event) => {
+  if (!betaFeedbackPanel || betaFeedbackPanel.classList.contains("is-hidden")) {
+    return;
+  }
+
+  if (!betaFeedbackContainer?.contains(event.target)) {
+    resetBetaFeedbackPanel();
+  }
+});
 
 quickAddClose?.addEventListener("click", () => {
   resetQuickAddPanel();
