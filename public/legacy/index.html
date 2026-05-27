@@ -75,6 +75,12 @@
           </div>
 
           <nav class="nav-stack" aria-label="Dashboard apps">
+            <details class="nav-group" data-nav-group="overview" open>
+              <summary class="nav-group-summary">
+                <span>Overview</span>
+                <span class="nav-group-count">1</span>
+              </summary>
+              <div class="nav-group-list">
             <button class="nav-item is-active" type="button" data-module="home" aria-label="Home">
               <span class="nav-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" role="img">
@@ -85,6 +91,14 @@
               </span>
               <span>Home</span>
             </button>
+              </div>
+            </details>
+            <details class="nav-group" data-nav-group="work" open>
+              <summary class="nav-group-summary">
+                <span>Work</span>
+                <span class="nav-group-count">2</span>
+              </summary>
+              <div class="nav-group-list">
             <button class="nav-item" type="button" data-module="schedule" aria-label="Calendar">
               <span class="nav-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" role="img">
@@ -105,6 +119,14 @@
               </span>
               <span>Open Jobs</span>
             </button>
+              </div>
+            </details>
+            <details class="nav-group" data-nav-group="service-desk" open>
+              <summary class="nav-group-summary">
+                <span>Service Desk</span>
+                <span class="nav-group-count">4</span>
+              </summary>
+              <div class="nav-group-list">
             <button class="nav-item" type="button" data-module="customOrders" aria-label="Custom orders">
               <span class="nav-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" role="img">
@@ -115,16 +137,6 @@
                 </svg>
               </span>
               <span>Custom Orders</span>
-            </button>
-            <button class="nav-item" type="button" data-module="clients" aria-label="Clients">
-              <span class="nav-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" role="img">
-                  <path d="M16 20v-1.7a3.3 3.3 0 0 0-3.3-3.3H7.3A3.3 3.3 0 0 0 4 18.3V20" />
-                  <circle cx="10" cy="8" r="4" />
-                  <path d="M19 20v-1.5a3 3 0 0 0-2.2-2.9M16.5 4.4a4 4 0 0 1 0 7.2" />
-                </svg>
-              </span>
-              <span>Clients</span>
             </button>
             <button class="nav-item" type="button" data-module="services" aria-label="Services">
               <span class="nav-icon" aria-hidden="true">
@@ -156,6 +168,24 @@
               </span>
               <span>Cue Repairs</span>
             </button>
+              </div>
+            </details>
+            <details class="nav-group" data-nav-group="people" open>
+              <summary class="nav-group-summary">
+                <span>People</span>
+                <span class="nav-group-count">2</span>
+              </summary>
+              <div class="nav-group-list">
+            <button class="nav-item" type="button" data-module="clients" aria-label="Clients">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img">
+                  <path d="M16 20v-1.7a3.3 3.3 0 0 0-3.3-3.3H7.3A3.3 3.3 0 0 0 4 18.3V20" />
+                  <circle cx="10" cy="8" r="4" />
+                  <path d="M19 20v-1.5a3 3 0 0 0-2.2-2.9M16.5 4.4a4 4 0 0 1 0 7.2" />
+                </svg>
+              </span>
+              <span>Clients</span>
+            </button>
             <button class="nav-item" type="button" data-module="team" aria-label="Team">
               <span class="nav-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" role="img">
@@ -165,6 +195,14 @@
               </span>
               <span>Team</span>
             </button>
+              </div>
+            </details>
+            <details class="nav-group" data-nav-group="collaboration" open>
+              <summary class="nav-group-summary">
+                <span>Collaboration</span>
+                <span class="nav-group-count">3</span>
+              </summary>
+              <div class="nav-group-list">
             <button class="nav-item" type="button" data-module="projects" aria-label="Projects">
               <span class="nav-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" role="img">
@@ -175,16 +213,6 @@
                 </svg>
               </span>
               <span>Projects</span>
-            </button>
-            <button class="nav-item is-hidden" type="button" data-module="development" data-dev-only aria-label="Development">
-              <span class="nav-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" role="img">
-                  <path d="m8 9-4 3 4 3" />
-                  <path d="m16 9 4 3-4 3" />
-                  <path d="m14 5-4 14" />
-                </svg>
-              </span>
-              <span>Development</span>
             </button>
             <button class="nav-item" type="button" data-module="notes" aria-label="Notes">
               <span class="nav-icon" aria-hidden="true">
@@ -206,6 +234,24 @@
               <span>Chat</span>
               <span class="nav-unread-badge" aria-hidden="true"></span>
             </button>
+              </div>
+            </details>
+            <details class="nav-group" data-nav-group="admin" open>
+              <summary class="nav-group-summary">
+                <span>Admin</span>
+                <span class="nav-group-count">2</span>
+              </summary>
+              <div class="nav-group-list">
+            <button class="nav-item is-hidden" type="button" data-module="development" data-dev-only aria-label="Development">
+              <span class="nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img">
+                  <path d="m8 9-4 3 4 3" />
+                  <path d="m16 9 4 3-4 3" />
+                  <path d="m14 5-4 14" />
+                </svg>
+              </span>
+              <span>Development</span>
+            </button>
             <button class="nav-item" type="button" data-module="settings" aria-label="Settings">
               <span class="nav-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" role="img">
@@ -215,6 +261,8 @@
               </span>
               <span>Settings</span>
             </button>
+              </div>
+            </details>
           </nav>
 
           <div class="sidebar-footer">

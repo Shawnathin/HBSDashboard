@@ -232,6 +232,7 @@ const projectStorageKey = "home-billiards-projects-v1";
 const projectAutomationStorageKey = "home-billiards-project-automations-v1";
 const betaFeedbackStorageKey = "home-billiards-beta-feedback-v1";
 const noteStorageKey = "home-billiards-notes-v1";
+const navGroupStorageKey = "home-billiards-nav-groups-v1";
 const backendClientId = (crypto?.randomUUID?.() || createId()).replace(/[^a-zA-Z0-9-]/g, "");
 const backendStateKeys = [
   "appointments",
@@ -730,6 +731,7 @@ const moduleCanvas = document.querySelector("#moduleCanvas");
 const moduleTitle = document.querySelector("#moduleTitle");
 const moduleEyebrow = document.querySelector("#moduleEyebrow");
 const navItems = [...document.querySelectorAll(".nav-item")];
+const navGroups = [...document.querySelectorAll(".nav-group")];
 const todayShortcut = document.querySelector("#todayShortcut");
 const newJobShortcut = document.querySelector("#newJobShortcut");
 const quickAddButton = document.querySelector("#quickAddButton");
@@ -11732,6 +11734,31 @@ function openDashboard(userKey) {
   }, 4300);
 }
 
+function expandActiveNavGroup(moduleKey) {
+  const activeItem = navItems.find((item) => item.dataset.module === moduleKey);
+  const activeGroup = activeItem?.closest(".nav-group");
+
+  if (activeGroup) {
+    activeGroup.open = true;
+  }
+}
+
+function initializeNavGroups() {
+  navGroups.forEach((group) => {
+    const storedState = localStorage.getItem(`${navGroupStorageKey}:${group.dataset.navGroup}`);
+
+    if (storedState) {
+      group.open = storedState === "open";
+    }
+  });
+
+  expandActiveNavGroup(activeModule);
+}
+
+function saveNavGroupState(group) {
+  localStorage.setItem(`${navGroupStorageKey}:${group.dataset.navGroup}`, group.open ? "open" : "closed");
+}
+
 function setModule(moduleKey) {
   if (moduleKey === "development" && !canCurrentUserUseDevelopment()) {
     moduleKey = "home";
@@ -11749,6 +11776,7 @@ function setModule(moduleKey) {
   navItems.forEach((item) => {
     item.classList.toggle("is-active", item.dataset.module === moduleKey);
   });
+  expandActiveNavGroup(moduleKey);
 
   const showScheduleShortcuts = moduleKey === "schedule";
   todayShortcut.classList.toggle("is-hidden", !showScheduleShortcuts);
@@ -11802,6 +11830,10 @@ navItems.forEach((item) => {
     bookingClientId = null;
     setModule(item.dataset.module);
   });
+});
+
+navGroups.forEach((group) => {
+  group.addEventListener("toggle", () => saveNavGroupState(group));
 });
 
 quickAddButton?.addEventListener("click", () => {
@@ -11996,5 +12028,6 @@ async function openFromUrlParams() {
 
 window.setInterval(checkNoteReminders, 30000);
 window.setTimeout(checkNoteReminders, 1200);
+initializeNavGroups();
 initializeBackendSync();
 openFromUrlParams();

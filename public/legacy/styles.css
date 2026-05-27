@@ -399,13 +399,80 @@ textarea:focus {
 
 .nav-stack {
   display: grid;
-  gap: 8px;
+  align-content: start;
+  gap: 10px;
   flex: 1;
   min-height: 0;
   max-height: max(220px, calc(100vh - 350px));
   margin-top: 18px;
   overflow: auto;
   padding-right: 2px;
+}
+
+.nav-group {
+  display: grid;
+  gap: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.nav-group-summary {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto 18px;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 7px 9px;
+  border-radius: var(--radius);
+  color: rgba(40, 95, 106, 0.88);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  list-style: none;
+  user-select: none;
+}
+
+.nav-group-summary::-webkit-details-marker {
+  display: none;
+}
+
+.nav-group-summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg) translateY(-1px);
+  transition: transform 160ms ease;
+}
+
+.nav-group[open] > .nav-group-summary::after {
+  transform: rotate(225deg) translate(-2px, -1px);
+}
+
+.nav-group-summary:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.nav-group-count {
+  display: grid;
+  min-width: 24px;
+  height: 20px;
+  place-items: center;
+  border-radius: 999px;
+  color: rgba(40, 95, 106, 0.82);
+  font-size: 0.68rem;
+  letter-spacing: 0;
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.nav-group-list {
+  display: grid;
+  gap: 8px;
+  padding: 0 6px 7px;
 }
 
 .nav-item {
@@ -7378,8 +7445,13 @@ button.project-mini-card {
   }
 
   .nav-stack {
-    grid-template-columns: repeat(12, minmax(58px, 1fr));
+    grid-template-columns: 1fr;
     margin-top: 10px;
+    max-height: none;
+  }
+
+  .nav-group-list {
+    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
   }
 
   .nav-item {
@@ -7540,7 +7612,7 @@ button.project-mini-card {
   }
 
   .nav-stack {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 1fr;
   }
 
   .canvas-topbar {
