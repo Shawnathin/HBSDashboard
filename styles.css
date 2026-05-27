@@ -791,7 +791,7 @@ textarea:focus {
 
 .quick-add-panel {
   position: absolute;
-  left: calc(100% + 14px);
+  left: calc(100% + 82px);
   bottom: -8px;
   z-index: 24;
   display: grid;
@@ -7675,7 +7675,7 @@ button.project-mini-card {
 
   .quick-add-panel {
     bottom: -8px;
-    left: calc(100% + 12px);
+    left: calc(100% + 80px);
     right: auto;
   }
 
